@@ -1628,7 +1628,7 @@ fi
 
 # Define the identity of the package.
  PACKAGE=phddns
- VERSION=2.0.2.16556
+ VERSION=2.0.3.16858
 
 
 cat >>confdefs.h <<_ACEOF

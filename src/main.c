@@ -125,11 +125,9 @@ int main(int argc, char *argv[])
 	global.cbOnAccountDomainInfo = myOnAccountDomainInfo;
 
 	set_default_callback(&global);
-	//注意！！！！！！！！！！！！！！！！！！！！！！！！
-	//以下两个值用户您临时测试（Oray可能随时删除或修改），正式发布前请填写您的实际分配值
-	global.clientinfo = 0x26A09899; 		//这里填写刚才第二步算出的值
-	global.challengekey = 0x1E0808B7;	//这里填写嵌入式认证码
-	//注意！！！！！！！！！！！！！！！！！！！！！！！！
+	//以下key为花生壳官方开源客户端专用，严禁用于其他用途，后果自负！
+	global.clientinfo = 0x26A09899; 
+	global.challengekey = 0x1E0808B7;
 	
 	for (;;)
 	{
