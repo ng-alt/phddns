@@ -450,6 +450,11 @@ int phddns_step(PHGlobal *phglobal)
 				LOG(1) ("Need redirect, waiting for 5 seconds...\n");
 				return 5;
 			}
+			if (ret == errorAuthFailed)
+			{
+				LOG(1) ("ExecuteUpdate AuthFailed, waiting for 600 seconds to retry...\n");
+				return 600;
+			}
 			
 			LOG(1) ("ExecuteUpdate failed, waiting for 30 seconds to retry...\n");
 			return 30;

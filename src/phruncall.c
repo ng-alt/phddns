@@ -162,9 +162,12 @@ void BindNic(  PHGlobal *pglobal,PH_parameter *parameter )
 			{
 				if(strcmp(buf[parameter->nicNumber].ifr_name,parameter->nicName)==0)
 				{
-					strcpy(pglobal->szBindAddress,inet_ntoa(((struct sockaddr_in*) (&buf[parameter->nicNumber].ifr_addr))->sin_addr));
-					printf("%s\n",inet_ntoa(((struct sockaddr_in*) (&buf[parameter->nicNumber].ifr_addr))->sin_addr));
-					printf("NIC bind success\n");
+					if (!(ioctl(fd, SIOCGIFADDR, (char *) &buf[parameter->nicNumber])))
+					{
+						strcpy(pglobal->szBindAddress,inet_ntoa(((struct sockaddr_in*) (&buf[parameter->nicNumber].ifr_addr))->sin_addr));
+						printf("%s\n",inet_ntoa(((struct sockaddr_in*) (&buf[parameter->nicNumber].ifr_addr))->sin_addr));
+						printf("NIC bind success\n");
+					}
 				}
 			}
 		}
@@ -548,14 +551,8 @@ void ShowNic( PHGlobal *pglobal,PH_parameter *parameter )
 			printf("Network interface(s):\n");
 			while (interface-- > 0) {
 				if (!(ioctl(fd, SIOCGIFADDR, (char *) &buf[interface]))) {
-					 printf("[%s] = [IP:%s][MAC:%02x:%02x:%02x:%02x:%02x:%02x]\n",buf[interface].ifr_name,\
-							inet_ntoa(((struct sockaddr_in *)(&buf[interface].ifr_addr)) -> sin_addr),\
-							&buf[interface].ifr_hwaddr.sa_data[0],\
-							&buf[interface].ifr_hwaddr.sa_data[1],\
-							&buf[interface].ifr_hwaddr.sa_data[2],\
-							&buf[interface].ifr_hwaddr.sa_data[3],\
-							&buf[interface].ifr_hwaddr.sa_data[4],\
-							&buf[interface].ifr_hwaddr.sa_data[5]);
+					 printf("[%s] = [IP:%s]\n",buf[interface].ifr_name,\
+							inet_ntoa(((struct sockaddr_in *)(&buf[interface].ifr_addr)) -> sin_addr));
 
 				} else 
 					perror("cpm: ioctl device");

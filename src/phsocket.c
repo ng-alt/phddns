@@ -169,7 +169,7 @@ BOOL phCreate(int *m_hSocket, unsigned short nSocketPort, int nSocketType, char 
 	}
 	if(phBind(*m_hSocket, nSocketPort, lpszSocketAddress))
 		return TRUE;	//Normal exit
-	phClose(*m_hSocket);
+	phClose(m_hSocket);
 	return FALSE;
 }
 
