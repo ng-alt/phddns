@@ -6,8 +6,8 @@
 int GenerateCrypt(char *szUser, 
 							char *szPassword, 
 							char *szChallenge64, 
-							long clientinfo,
-							long embkey, 
+							int clientinfo,
+							int embkey, 
 							char *szResult
 							 );
 
