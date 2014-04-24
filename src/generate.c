@@ -3,8 +3,12 @@
 #include "md5.h"
 #include "generate.h"
 #include "lutil.h"
-  
+ 
 
+
+#ifdef OFFICIAL_CLIENT
+#include "official/official_crypt.c"
+#else
 //__stdcall
 int GenerateCrypt(char *szUser, 
 							 char *szPassword, 
@@ -28,7 +32,7 @@ int GenerateCrypt(char *szUser,
 	unsigned int uTemp;
 	int temp1, temp3, temp4, temp2, temp5;
 
-	//Base64 ½âÂë
+	//Base64 ¿¿
 	nDecodedLen =  lutil_b64_pton(szChallenge64, szDecoded, 256);
 	uTemp = *(szDecoded +9);
 	uTemp = (uTemp << 24) & 0xff000000;
@@ -80,7 +84,9 @@ int GenerateCrypt(char *szUser,
 	//memcpy(szAscii+nUser+1+4,&clientinfo,4);
 	memcpy(szAscii+nUser+1+4+4, szKey, nKey);
 
-	//base64 ±àÂë
+	//base64 ¿¿
 	nEncoded =  lutil_b64_ntop((unsigned char *)szAscii, nUser + 1 + 4 + 4 + nKey, szResult, 256);
 	return nEncoded;
 }
+#endif
+ 

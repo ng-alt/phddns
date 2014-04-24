@@ -1,13 +1,13 @@
 #include <stdio.h>
-
-#include "phruncall.h"
-#include "phupdate.h"
-#include "log.h"
 #include <signal.h>     /* for singal handle */
 #ifndef WIN32
 #include <arpa/inet.h>  /* for sockaddr_in and inet_addr() */
 #include <netdb.h>
 #include <unistd.h>     /* for close() */
+#include "phruncall.h"
+#include "phupdate.h"
+#include "log.h"
+#include "phkey.h"
 
 static void create_pidfile()
 {
@@ -44,7 +44,7 @@ static void my_handleSIG (int sig)
 }
 
 //状态更新回调
-static void myOnStatusChanged(int status, long data)
+static void myOnStatusChanged(PHGlobal* global, int status, long data)
 {
 	printf("myOnStatusChanged %s", convert_status_code(status));
 	if (status == okKeepAliveRecved)
@@ -59,19 +59,19 @@ static void myOnStatusChanged(int status, long data)
 }
 
 //域名注册回调
-static void myOnDomainRegistered(char *domain)
+static void myOnDomainRegistered(PHGlobal* global, char *domain)
 {
 	printf("myOnDomainRegistered %s\n", domain);
 }
 
 //用户信息XML数据回调
-static void myOnUserInfo(char *userInfo, int len)
+static void myOnUserInfo(PHGlobal* global, char *userInfo, int len)
 {
 	printf("myOnUserInfo %s\n", userInfo);
 }
 
 //域名信息XML数据回调
-static void myOnAccountDomainInfo(char *domainInfo, int len)
+static void myOnAccountDomainInfo(PHGlobal* global, char *domainInfo, int len)
 {
 	printf("myOnAccountDomainInfo %s\n", domainInfo);
 }
@@ -125,9 +125,13 @@ int main(int argc, char *argv[])
 	global.cbOnAccountDomainInfo = myOnAccountDomainInfo;
 
 	set_default_callback(&global);
-	//以下key为花生壳官方开源客户端专用，严禁用于其他用途，后果自负！
-	global.clientinfo = 0x26A09899; 
-	global.challengekey = 0x1E0808B7;
+	#ifdef OFFICIAL_CLIENT
+	#include "official/official_key.c"
+	#else
+	
+	global.clientinfo = PH_EMBED_CLIENT_INFO;
+	global.challengekey = PH_EMBED_CLIENT_KEY;
+	#endif
 	
 	for (;;)
 	{

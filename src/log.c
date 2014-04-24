@@ -2,10 +2,8 @@
 #include <stdarg.h>
 #include <time.h>
 #include <stdio.h>
-#include <time.h>
 #include <memory.h>
 #include <string.h>
-
 #include <sys/timeb.h>
 
 #include "log.h"
@@ -21,14 +19,16 @@ int logLevel = 20;
 
 const char *logTime()
 {
-    static char buf[128];
-	struct tm *tm1;
+	static char buf[128];
+	char *p = 0;
 	time_t lTime;
-	
-	time(&lTime);
-	tm1 = localtime(&lTime);
+	struct tm *tm1;
+
+	time(&lTime);	
+	tm1 = localtime(&lTime);	
 	strcpy(buf, asctime(tm1));
-	char *p = strchr(buf, '\n');
+	p = strchr(buf, '\n');
+
 	if (p) *p = '\0';
     return buf;
 }
@@ -68,9 +68,10 @@ void log_print(const char *fmt, ...)
 	va_start(args, fmt);
 
 	snprintf(buf, sizeof(buf), "%s| %s", logTime(), fmt);
-	vfprintf(logFile, buf, args);
-
-	fflush(logFile);
+  if(logFile) {
+    vfprintf(logFile, buf, args);
+    fflush(logFile);
+  }
 
 	va_end(args);
 }

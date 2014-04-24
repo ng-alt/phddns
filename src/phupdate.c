@@ -59,6 +59,12 @@ BOOL SendKeepAlive(PHGlobal *phglobal, int opCode)
 	memcpy(p2,&data,KEEPALIVE_PACKET_LEN);
 	Blowfish_EnCode(&blf, p1+4,p2+4,KEEPALIVE_PACKET_LEN-4);
 
+	if (phglobal->bBigEndian)
+    {
+                reverse_byte_order((int*)p2, 5);
+                //printf("debug-- reversed byte order\n");
+     }
+
 	phSend(phglobal->m_udpsocket, p2, KEEPALIVE_PACKET_LEN,0);
 	//RecvKeepaliveResponse();
 	return TRUE;
@@ -82,17 +88,20 @@ int RecvKeepaliveResponse(PHGlobal *phglobal)
 	//DATA_KEEPALIVE data;
 	//if (m_udpsocket.Receive(&data,sizeof(DATA_KEEPALIVE),0)<=0) return FALSE;
 	if (phReceive(phglobal->m_udpsocket, temp,sizeof(temp),0)<=0) return okNoData;
+	//printf("debug-- received some udp data\n");
 	memcpy(&rdata, temp, sizeof(DATA_KEEPALIVE_EXT));
+	//if (phglobal->bBigEndian) reverse_byte_order((int*)&rdata.ip, 1);
 
 	data = rdata.keepalive;
 
 	InitBlowfish(&blf, (unsigned char*)phglobal->szChallenge,phglobal->nChallengeLen);
-
 	
 	memcpy(p1,&data,KEEPALIVE_PACKET_LEN);
+	if (phglobal->bBigEndian) reverse_byte_order((int*)p1, 5);
 	memcpy(p2,&data,KEEPALIVE_PACKET_LEN);
 	Blowfish_DeCode(&blf, p1+4,p2+4,KEEPALIVE_PACKET_LEN-4);
 	memcpy(&data,p2,KEEPALIVE_PACKET_LEN);
+
 	phglobal->nStartID = data.lID + 1;
 	
 	LOG(1) (("RecvKeepaliveResponse() Data comes, OPCODE:%d\n"),data.lOpCode);
@@ -256,7 +265,7 @@ int ExecuteUpdate(PHGlobal *phglobal)
 	}
 
 	phglobal->cLastResult = okDomainListed;
-	if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal->cLastResult, 0);
+	if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal, phglobal->cLastResult, 0);
 	//::SendMessage(theApp.m_hWndController,WM_DOMAIN_UPDATEMSG,okDomainListed,(long)domains);
 	//////////////////////////////////////////////////////////////////////////
 	//send domain regi commands list
@@ -289,7 +298,7 @@ int ExecuteUpdate(PHGlobal *phglobal)
 			return errorDomainRegisterFailed;
 		}
 		LOG(1) (("ExecuteUpdate %s\n"),buffer);
-		if (phglobal->cbOnDomainRegistered) phglobal->cbOnDomainRegistered(domains[i]);
+		if (phglobal->cbOnDomainRegistered) phglobal->cbOnDomainRegistered(phglobal, domains[i]);
     }
 	
 	memset(buffer, 0, 128);
@@ -304,21 +313,32 @@ int ExecuteUpdate(PHGlobal *phglobal)
 
 	//////////////////////////////////////////////////////////////////////////
 	//find chatid & startid
-	chatid = buffer + 4;
-	startid = NULL;
-	
-	for (i=4;i<strlen(buffer);i++)
+	buffer[3] = 0;
+	if (strcmp(buffer,"250")!=0)
 	{
-		if (buffer[i] == ' ')
-		{
-			buffer[i] = 0;
-			startid = buffer + i + 1;
-			break;
-		}
+		phglobal->nChatID = phglobal->nStartID = 0;
+		LOG(1) (("ExecuteUpdate register failed %s\n"),buffer);
 	}
-	phglobal->nChatID = atoi(chatid);
-	if (startid) phglobal->nStartID = atoi(startid);
-	LOG(1) (("ExecuteUpdate nChatID:%d, nStartID:%d\n"),phglobal->nChatID,phglobal->nStartID);
+	else
+	{
+		chatid = buffer + 4;
+		startid = NULL;
+
+		for (i=0;i<strlen(chatid);i++)
+		{
+			if (buffer[i] == ' ')
+			{
+				buffer[i] = 0;
+				startid = buffer + i + 1;
+				break;
+			}
+		}
+		phglobal->nChatID = atoi(chatid);
+		if (startid) phglobal->nStartID = atoi(startid);
+		LOG(1) (("ExecuteUpdate nChatID:%d, nStartID:%d\n"),phglobal->nChatID,phglobal->nStartID);
+	}
+	
+	
 	//////////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////////////////
 	//after confirm domain register, we begin to get user information
@@ -351,7 +371,7 @@ int ExecuteUpdate(PHGlobal *phglobal)
 		strncat(xmldata, buffer, len);
 	}
 	LOG(1) ("userinfo: \r\n%s\r\n", xmldata);
-	if (phglobal->cbOnUserInfo) phglobal->cbOnUserInfo(xmldata, strlen(xmldata));
+	if (phglobal->cbOnUserInfo) phglobal->cbOnUserInfo(phglobal, xmldata, strlen(xmldata));
 	free(xmldata);
 	buflen = 0;
 	
@@ -385,7 +405,7 @@ int ExecuteUpdate(PHGlobal *phglobal)
 		strncat(xmldata, buffer, len);
 	}
 	LOG(1) ("domaininfo: \r\n%s\r\n", xmldata);
-	if (phglobal->cbOnAccountDomainInfo) phglobal->cbOnAccountDomainInfo(xmldata, strlen(xmldata));
+	if (phglobal->cbOnAccountDomainInfo) phglobal->cbOnAccountDomainInfo(phglobal, xmldata, strlen(xmldata));
 	free(xmldata);
 	buflen = 0;
 
@@ -408,6 +428,48 @@ int ExecuteUpdate(PHGlobal *phglobal)
 	return okDomainsRegistered;
 }
 
+int phddns_getkeepalive(int user_type) {
+  return (user_type >= 3 ) ? 15 : ((user_type >= 1) ? 30 : 60);
+}
+
+int get_retry_seconds(int user_type) {
+	int nMaxRetrySeconds = 320; //5 * 60 + 20
+	switch (user_type)
+	{
+	case 1://pro
+	case 2://biz
+		nMaxRetrySeconds = 160; //5 * 30 + 10
+		break;
+	case 3://premium
+		nMaxRetrySeconds = 80; //5 * 15 + 5
+		break;
+	case 0://free
+	default:
+		nMaxRetrySeconds = 320; //5 * 60 + 20
+		break;
+	}
+	return nMaxRetrySeconds;
+}
+
+int get_keepalive_warn_seconds(int user_type) {
+	int nMaxKeepaliveWarnSeconds = 130; // 2 * 60 + 10
+	switch (user_type)
+	{
+	case 1://pro
+	case 2://biz
+		nMaxKeepaliveWarnSeconds = 65; // 2 * 30 + 5
+		break;
+	case 3://premium
+		nMaxKeepaliveWarnSeconds = 35; // 2 * 15 + 5
+		break;
+	case 0://free
+	default:
+		nMaxKeepaliveWarnSeconds = 130; // 2 * 60 + 10
+		break;
+	}
+	return nMaxKeepaliveWarnSeconds;
+}
+
 int phddns_step(PHGlobal *phglobal)
 {
 	int ret = 0;
@@ -417,28 +479,37 @@ int phddns_step(PHGlobal *phglobal)
 		
 		phglobal->cLastResult = okConnecting;
 		
-		if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal->cLastResult, 0);
+		if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal, phglobal->cLastResult, 0);
 		
 		if (!InitializeSockets(phglobal))
 		{
 			LOG(1) ("InitializeSockets failed, waiting for 5 seconds to retry...\n");
 			phglobal->cLastResult = errorConnectFailed;
-			if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal->cLastResult, 0);
+			if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal, phglobal->cLastResult, 0);
 			return 5;
 		}
 		
 		ret = ExecuteUpdate(phglobal);
 		phglobal->cLastResult = ret;
-		if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal->cLastResult, ret == okDomainsRegistered ? phglobal->nUserType : 0);
+		if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal, phglobal->cLastResult, ret == okDomainsRegistered ? phglobal->nUserType : 0);
 		if (ret == okDomainsRegistered) 
 		{
 			//OnUserInfo(phglobal->szUserInfo);
 			//OnAccountDomainInfo(phglobal->szDomainInfo);
-			LOG(1) ("ExecuteUpdate OK, BeginKeepAlive!\n");
+			if (phglobal->nChatID == 0) //user has no domains, no need to begin keepalive
+			{
+				LOG(1) ("ExecuteUpdate OK, nChatID 0\n");
+			}
+			else
+			{
+				LOG(1) ("ExecuteUpdate OK, BeginKeepAlive!\n");
+				
+				BeginKeepAlive(phglobal);
+				
+			}
 			phglobal->bTcpUpdateSuccessed = TRUE;
 			phglobal->tmLastResponse = time(0);
 			phglobal->bNeed_connect = FALSE;
-			BeginKeepAlive(phglobal);
 			phglobal->lasttcptime = phglobal->tmLastSend = time(0);
 		}
 		else 
@@ -463,7 +534,12 @@ int phddns_step(PHGlobal *phglobal)
 	}
 	else
 	{
-		if (time(0) - phglobal->tmLastSend > (phglobal->nUserType >= 1 ? 30 : 60))
+		if (phglobal->nChatID == 0)//user has no domains, no need to begin keepalive
+		{
+			return 300;
+		}
+
+		if (time(0) - phglobal->tmLastSend > phddns_getkeepalive(phglobal->nUserType) )  // old code (phglobal->nUserType >= 1 ? 30 : 60)
 		{
 			SendKeepAlive(phglobal, UDP_OPCODE_UPDATE_VER2);
 			phglobal->tmLastSend = time(0);
@@ -475,6 +551,8 @@ int phddns_step(PHGlobal *phglobal)
 			LOG(1) ("RecvKeepaliveResponse failed, waiting for 30 seconds to reconnect...\n");
 			phglobal->bNeed_connect = TRUE;
 			phglobal->bTcpUpdateSuccessed = FALSE;
+
+			if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal, phglobal->cLastResult, 0);
 			return 30;
 		}
 		else
@@ -484,16 +562,36 @@ int phddns_step(PHGlobal *phglobal)
 				struct in_addr t;
 				t.s_addr = phglobal->ip;
 				LOG(1) ("Keepalive response received, client ip: %s\n",inet_ntoa(t));
-				if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal->cLastResult, phglobal->ip);
+				if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal, phglobal->cLastResult, phglobal->ip);
 			}
 		}
-		if (time(0) - phglobal->tmLastResponse > (phglobal->nUserType >= 1 ? 160 : 320) && phglobal->tmLastResponse != -1)
+
+		if (time(0) - phglobal->tmLastResponse > get_retry_seconds(phglobal->nUserType) && phglobal->tmLastResponse != -1) 
 		{
-			LOG(1) ("No response from server for %d seconds, reconnect immediately...\n", (phglobal->nUserType == 1 ? 160 : 320));
+			LOG(1) ("No response from server for %d seconds, reconnect immediately...\n", get_retry_seconds(phglobal->nUserType));
 			phglobal->bTcpUpdateSuccessed = FALSE;
 			phglobal->bNeed_connect = TRUE;
+			if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal, errorRetrying, 0);
+			
 			return 1;
 		}
+		else if (((time(0) - phglobal->tmLastResponse) > get_keepalive_warn_seconds(phglobal->nUserType)) && phglobal->tmLastResponse != -1)
+		{
+			//LOG(1) ("No response from server for %d seconds, keepAlive error...\n", ret);
+			if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal, errorKeepAliveError, 0);
+
+			return 1;
+		}
+
+		//if (time(0) - phglobal->tmLastResponse > (phglobal->nUserType >= 1 ? 130 : 320) && phglobal->tmLastResponse != -1)
+		//{
+		//	LOG(1) ("No response from server for %d seconds, reconnect immediately...\n", (phglobal->nUserType == 1 ? 160 : 320));
+		//	phglobal->bTcpUpdateSuccessed = FALSE;
+		//	phglobal->bNeed_connect = TRUE;
+
+		//	if (phglobal->cbOnStatusChanged) phglobal->cbOnStatusChanged(phglobal, errorOccupyReconnect, 0);
+		//	return 1;
+		//}
 	}
 	return 1;
 }

@@ -31,41 +31,17 @@
 #endif
 
 #include "phsocket.h"
+#include "pherr.h"
 
 #define MAX_TCP_PACKET_LEN	8192
 
-//! 客户端状态
-enum MessageCodes
-{
-	okConnected = 0,
-	okAuthpassed,
-	okDomainListed,
-	okDomainsRegistered,
-	okKeepAliveRecved,
-	okConnecting,
-	okRetrievingMisc,
-	okRedirecting,
-
-	errorConnectFailed = 0x100,
-	errorSocketInitialFailed,
-	errorAuthFailed,
-	errorDomainListFailed,
-	errorDomainRegisterFailed,
-	errorUpdateTimeout,
-	errorKeepAliveError,
-	errorRetrying,
-	errorAuthBusy,
-	errorStatDetailInfoFailed,
-	
-
-	okNormal = 0x120,
-	okNoData,
-	okServerER,
-	errorOccupyReconnect,
-};
-
 //! TCP指令表
-#define COMMAND_AUTH	"auth router6\r\n"
+#ifdef OFFICIAL_CLIENT
+	#define COMMAND_AUTH	"auth phsrv6\r\n"
+#else
+	#define COMMAND_AUTH	"auth router6\r\n"
+#endif
+
 #define COMMAND_REGI    "regi a"
 #define COMMAND_CNFM    "cnfm\r\n"
 #define COMMAND_STAT_USER    "stat user\r\n"
@@ -85,12 +61,13 @@ enum MessageCodes
 //! 心跳包加密部分大小
 #define KEEPALIVE_PACKET_LEN	20
 
+
 //! 转换状态码到文本串
 const char *convert_status_code(int nCode);
 
 //! 转换IP地址到文本串
 const char *my_inet_ntoa(int ip);
-
+void reverse_byte_order(int *in_array,int arraysize);
 //! 心跳包结构
 typedef struct  
 {
@@ -113,7 +90,9 @@ typedef struct
 	int ip;
 }DATA_KEEPALIVE_EXT;
 
-	typedef void (*CALLBACK_OnStatusChanged)(int status, int data); 
+typedef struct __PHGlobal PHGlobal;
+
+	typedef void (*CALLBACK_OnStatusChanged)(PHGlobal*, int status, int data); 
 	//! 此函数得到状态变更
 	/*! status可能的值：
 		enum MessageCodes
@@ -149,16 +128,15 @@ typedef struct
 		3、其他情况下，data一直为0
 	*/
 	//! 此函数得到注册的域名，每条域名被执行一次
-	typedef void (*CALLBACK_OnDomainRegistered)(char *domainName); 
+	typedef void (*CALLBACK_OnDomainRegistered)(PHGlobal*, char *domainName); 
 	//! 此函数得到用户信息，XML格式
-	typedef void (*CALLBACK_OnUserInfo)(char *userInfo, int length); 
+	typedef void (*CALLBACK_OnUserInfo)(PHGlobal*, char *userInfo, int length); 
 	//! 此函数得到用户域名信息，XML格式
-	typedef void (*CALLBACK_OnAccountDomainInfo)(char *domainInfo, int length); 
+	typedef void (*CALLBACK_OnAccountDomainInfo)(PHGlobal*, char *domainInfo, int length); 
 
 
 //! 全局变量
-typedef struct
-{
+struct __PHGlobal {
 //basic system info
 	//! 嵌入式客户端信息，4位客户端ID + 4位版本号
 	int clientinfo;
@@ -200,12 +178,16 @@ typedef struct
 	int tmLastSend;
 
 	int m_tcpsocket,m_udpsocket;
+	BOOL bBigEndian;
+
+  // 绑定指针， 用于c++或者其他事件通知
+  void* user_data;
 
 	CALLBACK_OnStatusChanged cbOnStatusChanged;
 	CALLBACK_OnDomainRegistered cbOnDomainRegistered;
 	CALLBACK_OnUserInfo cbOnUserInfo;
 	CALLBACK_OnAccountDomainInfo cbOnAccountDomainInfo;
-} PHGlobal;
+};
 
 void init_global(PHGlobal *global);
 void set_default_callback(PHGlobal *global);
