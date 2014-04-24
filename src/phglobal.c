@@ -14,79 +14,78 @@
 
 const char *convert_status_code(int nCode)
 {
-	static char buf[64] = "";
-
+	const char* p = "";
 	switch (nCode)
 	{
 	case okConnecting:
-		strcpy(buf,"okConnecting");
+		p = "okConnecting";
 		break;
 	case okConnected:
-		strcpy(buf,"okConnected");
+		p = "okConnected";
 		break;
 	case okAuthpassed:
-		strcpy(buf,"okAuthpassed");
+		p = "okAuthpassed";
 		break;
 	case okDomainListed:
-		strcpy(buf,"okDomainListed");
+		p = "okDomainListed";
 		break;
 	case okDomainsRegistered:
-		strcpy(buf,"okDomainsRegistered");
+		p = "okDomainsRegistered";
 		break;
 	case okKeepAliveRecved:
-		strcpy(buf,"okKeepAliveRecved");
+		p = "okKeepAliveRecved";
 		break;
 	case okRetrievingMisc:
-		strcpy(buf,"okRetrievingMisc");
+		p = "okRetrievingMisc";
 		break;
 	case errorConnectFailed:
-		strcpy(buf,"errorConnectFailed");
+		p = "errorConnectFailed";
 		break;
 	case errorSocketInitialFailed:
-		strcpy(buf,"errorSocketInitialFailed");
+		p = "errorSocketInitialFailed";
 		break;
 	case errorAuthFailed:
-		strcpy(buf,"errorAuthFailed");
+		p = "errorAuthFailed";
 		break;
 	case errorDomainListFailed:
-		strcpy(buf,"errorDomainListFailed");
+		p = "errorDomainListFailed";
 		break;
 	case errorDomainRegisterFailed:
-		strcpy(buf,"errorDomainRegisterFailed");
+		p = "errorDomainRegisterFailed";
 		break;
 	case errorUpdateTimeout:
-		strcpy(buf,"errorUpdateTimeout");
+		p = "errorUpdateTimeout";
 		break;
 	case errorKeepAliveError:
-		strcpy(buf,"errorKeepAliveError");
+		p = "errorKeepAliveError";
 		break;
 	case errorRetrying:
-		strcpy(buf,"errorRetrying");
+		p = "errorRetrying";
 		break;
 	case okNormal:
-		strcpy(buf,"okNormal");
+		p = "okNormal";
 		break;
 	case okNoData:
-		strcpy(buf,"okNoData");
+		p = "okNoData";
 		break;
 	case okServerER:
-		strcpy(buf,"okServerER");
+		p = "okServerER";
 		break;
 	case errorOccupyReconnect:
-		strcpy(buf,"errorOccupyReconnect");
+		p = "errorOccupyReconnect";
 		break;
 	case okRedirecting:
-		strcpy(buf,"okRedirecting");
+		p = "okRedirecting";
 		break;
 	case errorAuthBusy:
-		strcpy(buf,"errorAuthBusy");
+		p = "errorAuthBusy";
 		break;
 	case errorStatDetailInfoFailed:
-		strcpy(buf,"errorAuthBusy");
+		p = "errorAuthBusy";
 		break;
 	}
 
-	return buf;
+	return p;
 }
 
 
@@ -97,7 +96,58 @@ const char *my_inet_ntoa(int ip)
 	return inet_ntoa(addr);
 }
 
-static void defOnStatusChanged(int status, int data)
+void reverse_byte_order(int *in_array,int arraysize)
+{
+
+	unsigned int   i,k;
+	signed char *p_data;   /*data pointer*/
+	signed char *p_temp;   /*temporaty data pointer */
+	int temp;
+
+	/*printf("before %d %d\n",input_data[0],input_data[1]);*/
+	p_data = (signed char *) in_array - 1;
+	for ( k = 0 ; k < arraysize ; k++ )
+	{
+		temp = *( in_array + k );
+		p_temp = ( signed char * ) ( &temp ) + 4;
+
+		for  ( i = 0 ; i < 4 ; i++ )
+		{
+			*(++p_data) = *(--p_temp);
+		}
+	}
+	/*printf("after %d %d\n",input_data[0],input_data[1]);*/
+
+	/*free(start_ptr);*/
+}
+
+void reverse_byte_order_short(short *in_array,int arraysize)
+{
+
+	unsigned int   i,k;
+	signed char *p_data;   /*data pointer*/
+	signed char *p_temp;   /*temporaty data pointer */
+	short temp;
+
+	/*printf("before %d %d\n",input_data[0],input_data[1]);*/
+	p_data = (signed char *) in_array - 1;
+	for ( k = 0 ; k < arraysize ; k++ )
+	{
+		temp = *( in_array + k );
+		p_temp = ( signed char * ) ( &temp ) + 2;
+
+		for  ( i = 0 ; i < 2 ; i++ )
+		{
+			*(++p_data) = *(--p_temp);
+		}
+	}
+	/*printf("after %d %d\n",input_data[0],input_data[1]);*/
+
+	/*free(start_ptr);*/
+}
+
+
+static void defOnStatusChanged(PHGlobal* global, int status, int data)
 {
 	printf("defOnStatusChanged %s", convert_status_code(status));
 	if (status == okKeepAliveRecved)
@@ -111,23 +161,28 @@ static void defOnStatusChanged(int status, int data)
 	printf("\n");
 }
 
-static void defOnDomainRegistered(char *domain)
+static void defOnDomainRegistered(PHGlobal* global, char *domain)
 {
 	printf("defOnDomainRegistered %s\n", domain);
 }
 
-static void defOnUserInfo(char *userInfo, int len)
+static void defOnUserInfo(PHGlobal* global, char *userInfo, int len)
 {
 	printf("defOnUserInfo %s\n", userInfo);
 }
 
-static void defOnAccountDomainInfo(char *domainInfo, int len)
+static void defOnAccountDomainInfo(PHGlobal* global, char *domainInfo, int len)
 {
 	printf("defOnAccountDomainInfo %s\n", domainInfo);
 }
 
 void init_global(PHGlobal *global)
 {
+	int x = 1;
+	char *p = (char *)&x;
+	if (*p) global->bBigEndian = FALSE;
+	else global->bBigEndian = TRUE;
+
 	strcpy(global->szHost,"phddns60.oray.net");
 	strcpy(global->szUserID,"");
 	strcpy(global->szUserPWD,"");
@@ -154,7 +209,7 @@ void init_global(PHGlobal *global)
 	global->tmLastSend = 0;
 
 	global->m_tcpsocket = global->m_udpsocket = INVALID_SOCKET;
-	
+	global->user_data = NULL;
 	global->cbOnStatusChanged = NULL;
 	global->cbOnDomainRegistered = NULL;
 	global->cbOnUserInfo = NULL;

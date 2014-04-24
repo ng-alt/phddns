@@ -13,6 +13,7 @@
 #include "log.h"
 #include "phglobal.h"
 
+#define PHDDNS_REVISION	"$Revision: 32841 $$Date: 2014-04-09 10:14:34 +0800 $$Author: skyvense $"
 #define ISSPACE(x) ((x)==' '||(x)=='\r'||(x)=='\n'||(x)=='\f'||(x)=='\b'||(x)=='\t')
 
 int checkparameter(int argc,char** argv,PHGlobal *pglobal,PH_parameter *parameter)
@@ -100,28 +101,28 @@ int checkparameter(int argc,char** argv,PHGlobal *pglobal,PH_parameter *paramete
 
 void HelpPrint()
 {
-	printf("  Peanuthull Linux-core 2.0 by oray.com, copyright 2011\n");;
-	printf("  Peanuthull Linux-core Help\n");
+	printf("Peanuthull Linux, Copyright (c) 2006-2014\n");;
+	printf("%s\n",PHDDNS_REVISION);
 	printf("--first-run\n");
-	printf("  -f, run for the first time\n");
+	printf("\t-f, run for the first time\n");
 	printf("--interact\n");
-	printf("  -i, run as interactive mode\n");
-	printf("  program will request for necessary parameters.\n");
-	printf("  this mode will automatically enabled at first running,\n");
-	printf("  or your configuration file has been lost.\n");
+	printf("\t-i, run as interactive mode\n");
+	printf("\t\tprogram will request for necessary parameters.\n");
+	printf("\t\tthis mode will automatically enabled at first running,\n");
+	printf("\t\tor your configuration file has been lost.\n");
 	printf("--daemon\n");
-	printf("  -d, run as a daemon\n");
-	printf("  program will quit after put itself to background,\n");
-	printf("  and continue running even you logout,\n");
-	printf("  you can use kill -9 <PID> to terminate.\n");
+	printf("\t-d, run as a daemon\n");
+	printf("\t\tprogram will quit after put itself to background,\n");
+	printf("\t\tand continue running even you logout,\n");
+	printf("\t\tyou can use kill -9 <PID> to terminate.\n");
 	printf("--config\n");
-	printf("  -c, run with configuration file\n");
-	printf("  program will run with the file\n");
+	printf("\t-c, run with configuration file\n");
+	printf("\t\tprogram will run with the file\n");
 	printf("--user\n");
-	printf("  -u, run as the user \n");
-	printf("  program will run as the user\n");
+	printf("\t-u, run as the user \n");
+	printf("\t\tprogram will run as the user\n");
 	printf("--help\n");
-	printf("  -h, print this screen.\n");
+	printf("\t-h, print this screen.\n");
 	printf("Please visit http://www.oray.com for detail.\n");
 }
 
@@ -292,12 +293,12 @@ void NewHost(PHGlobal *pglobal)
 {
 	while(1)
 	{
-		printf("Enter server address(press ENTER use phlinux3.oray.net):");
+		printf("Enter server address(press ENTER use phddns60.oray.net):");
 		memset(pglobal->szHost,0,sizeof(pglobal->szHost));
 		fgets(pglobal->szHost,100,stdin);
 		if( strlen(trim(pglobal->szHost)) == 0 )
 		{
-			strcpy(pglobal->szHost,"PhLinux3.Oray.Net");
+			strcpy(pglobal->szHost,"phddns60.oray.net");
 			break;
 		}
 		else
@@ -695,23 +696,59 @@ int MyReadFile(char* filename,PHGlobal *pglobal,PH_parameter *parameter)
 
 }
 
-char *trim(char *string) 
+char *trim(char *str) 
 {
-	char *tail,*head; 
+	char *ibuf = str, *obuf = str;
+      int i = 0, cnt = 0;
 
-	for(tail = string+strlen(string)-1; tail>=string; tail--) 
-		if(!ISSPACE(*tail)) 
-			break;
-	tail[1] = 0;
+      /*
+      **  Trap NULL
+      */
 
-	for(head = string; head <= tail;head++) 
-		if(!ISSPACE(*head))
-			break;
+      if (str)
+      {
+            /*
+            **  Remove leading spaces (from RMLEAD.C)
+            */
 
-	if(head != string) 
-		memcpy(string, head, (tail-head+2 )*sizeof(char));
+            for (ibuf = str; *ibuf && ISSPACE(*ibuf); ++ibuf)
+                  ;
+            if (str != ibuf)
+                  memmove(str, ibuf, ibuf - str);
 
-	return string;
+            /*
+            **  Collapse embedded spaces (from LV1WS.C)
+            */
+
+			while (*ibuf)
+			{
+				if (ISSPACE(*ibuf) && cnt)
+					ibuf++;
+				else
+				{
+					if (!ISSPACE(*ibuf))
+						cnt = 0;
+					else
+					{
+						*ibuf = ' ';
+						cnt = 1;
+					}
+					obuf[i++] = *ibuf++;
+				}
+			}
+			obuf[i] = 0;
+
+            /*
+            **  Remove trailing spaces (from RMTRAIL.C)
+            */
+            while (--i >= 0)
+            {
+                  if (!ISSPACE(obuf[i]))
+                        break;
+            }
+            obuf[++i] = 0;
+      }
+      return str;
 }
 
 int GetValue(char* root,char* attribute,char* value,PHGlobal *pglobal,PH_parameter *parameter)

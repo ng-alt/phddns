@@ -8,5 +8,5 @@
 void log_open(const char *file, int level);
 void log_close();
 void log_print(const char *fmt, ...);
-int logLevel;
+extern int logLevel;
 #endif
